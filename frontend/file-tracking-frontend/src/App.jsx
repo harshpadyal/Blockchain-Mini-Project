@@ -5,19 +5,12 @@ import "./App.css";
 function App() {
   const [account, setAccount] = useState("");
   const [fileName, setFileName] = useState("");
+  const [pdfFile, setPdfFile] = useState(null);
   const [fileId, setFileId] = useState("");
   const [receiver, setReceiver] = useState("");
   const [fileCount, setFileCount] = useState("0");
   const [fileDetails, setFileDetails] = useState(null);
-  const [history, setHistory] = useState([
-    {
-      title: "File Created/Moved",
-      from: "0xf39...2266",
-      to: "0x709...79C8",
-      hash: "transaction hash:78c3h...",
-      timestamp: "4/14/2026, 10:57 PM",
-    },
-  ]);
+  const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const shortAddress = (addr) => {
@@ -52,6 +45,13 @@ function App() {
     }
   };
 
+  const generateFileHash = async (file) => {
+    const buffer = await file.arrayBuffer();
+    const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+  };
+
   const createFile = async () => {
     try {
       if (!fileName.trim()) {
@@ -59,9 +59,37 @@ function App() {
         return;
       }
 
+      if (!pdfFile) {
+        alert("Please select a PDF file");
+        return;
+      }
+
       setLoading(true);
+
+      const formData = new FormData();
+      formData.append("pdf", pdfFile);
+
+      const uploadResponse = await fetch("http://localhost:5000/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const uploadData = await uploadResponse.json();
+
+      if (!uploadResponse.ok) {
+        throw new Error(uploadData.message || "Upload failed");
+      }
+
+      const fileHash = await generateFileHash(pdfFile);
+
       const contract = await getContract();
-      const tx = await contract.createFile(fileName);
+      const tx = await contract.createFile(
+        fileName,
+        fileHash,
+        uploadData.fileUrl,
+        uploadData.size
+      );
+
       await tx.wait();
 
       setHistory((prev) => [
@@ -76,10 +104,11 @@ function App() {
       ]);
 
       setFileName("");
+      setPdfFile(null);
       await getFileCount();
-      alert("File created successfully!");
+      alert("PDF uploaded and metadata stored on blockchain!");
     } catch (error) {
-      console.error(error);
+      console.error("Create file error:", error);
       alert("Create file failed");
     } finally {
       setLoading(false);
@@ -100,7 +129,7 @@ function App() {
 
       setHistory((prev) => [
         {
-          title: "File Created/Moved",
+          title: "File Transferred",
           from: shortAddress(account),
           to: shortAddress(receiver),
           hash: tx.hash,
@@ -114,7 +143,7 @@ function App() {
       await getHistory();
       alert("File transferred successfully!");
     } catch (error) {
-      console.error(error);
+      console.error("Transfer error:", error);
       alert("Transfer failed");
     } finally {
       setLoading(false);
@@ -145,9 +174,12 @@ function App() {
       setFileDetails({
         id: file.id.toString(),
         name: file.name,
+        fileHash: file.fileHash,
+        fileUrl: file.fileUrl,
+        fileSize: file.fileSize.toString(),
         currentOwner: file.currentOwner,
-        lastAccessed: "--",
-        status: "Not Loaded",
+        lastAccessed: new Date().toLocaleString(),
+        status: "Stored",
       });
     } catch (error) {
       console.error(error);
@@ -166,7 +198,7 @@ function App() {
       const fileHistory = await contract.getHistory(fileId);
 
       const formattedHistory = fileHistory.map((item) => ({
-        title: "File Created/Moved",
+        title: "File Transferred",
         from: shortAddress(item.from),
         to: shortAddress(item.to),
         hash: "-",
@@ -203,6 +235,7 @@ function App() {
         <div className="top-grid">
           <div className="card">
             <h2 className="card-title">CREATE FILE</h2>
+
             <input
               className="input"
               type="text"
@@ -210,8 +243,17 @@ function App() {
               value={fileName}
               onChange={(e) => setFileName(e.target.value)}
             />
+
+            <input
+              className="input"
+              type="file"
+              accept="application/pdf"
+              onChange={(e) => setPdfFile(e.target.files[0])}
+              style={{ marginTop: "12px" }}
+            />
+
             <button className="primary-btn" onClick={createFile} disabled={loading}>
-              {loading ? "Processing..." : "⊕ Create File"}
+              {loading ? "Processing..." : "⊕ Upload PDF & Create File"}
             </button>
           </div>
 
@@ -283,6 +325,29 @@ function App() {
                   <span>Status</span>
                   <span>{fileDetails?.status || "Not Loaded"}</span>
                 </div>
+
+                <div className="detail-item">
+                  <span>File Name</span>
+                  <span>{fileDetails?.name || "Not Loaded"}</span>
+                </div>
+
+                <div className="detail-item">
+                  <span>Size</span>
+                  <span>{fileDetails?.fileSize ? `${fileDetails.fileSize} bytes` : "Not Loaded"}</span>
+                </div>
+
+                <div className="detail-item">
+                  <span>PDF</span>
+                  <span>
+                    {fileDetails?.fileUrl ? (
+                      <a href={fileDetails.fileUrl} target="_blank" rel="noreferrer">
+                        Open
+                      </a>
+                    ) : (
+                      "Not Loaded"
+                    )}
+                  </span>
+                </div>
               </div>
 
               <div className="history-panel">
@@ -322,13 +387,19 @@ function App() {
                 )}
               </div>
             </div>
+
+            {fileDetails?.fileHash && (
+              <div style={{ marginTop: "16px", fontSize: "14px", wordBreak: "break-all" }}>
+                <strong>File Hash:</strong> {fileDetails.fileHash}
+              </div>
+            )}
           </div>
         </div>
 
         <footer className="footer">
-          <span>Blockchain Status: Mainnet</span>
-          <span>Privacy · Privacy · Docs</span>
-          <span>Command · Docs</span>
+          <span>Blockchain Status: Localhost</span>
+          <span>Privacy · Metadata on Blockchain</span>
+          <span>PDF Stored Locally</span>
         </footer>
       </div>
     </div>

@@ -4,7 +4,12 @@ const CONTRACT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
 
 const ABI = [
   {
-    inputs: [{ internalType: "string", name: "_name", type: "string" }],
+    inputs: [
+      { internalType: "string", name: "_name", type: "string" },
+      { internalType: "string", name: "_fileHash", type: "string" },
+      { internalType: "string", name: "_fileUrl", type: "string" },
+      { internalType: "uint256", name: "_fileSize", type: "uint256" },
+    ],
     name: "createFile",
     outputs: [],
     stateMutability: "nonpayable",
@@ -23,6 +28,9 @@ const ABI = [
     outputs: [
       { internalType: "uint256", name: "id", type: "uint256" },
       { internalType: "string", name: "name", type: "string" },
+      { internalType: "string", name: "fileHash", type: "string" },
+      { internalType: "string", name: "fileUrl", type: "string" },
+      { internalType: "uint256", name: "fileSize", type: "uint256" },
       { internalType: "address", name: "currentOwner", type: "address" },
     ],
     stateMutability: "view",
