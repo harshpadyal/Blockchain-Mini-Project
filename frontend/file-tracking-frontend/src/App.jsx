@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { getContract } from "./utils/contract";
+import "./App.css";
 
 function App() {
   const [account, setAccount] = useState("");
@@ -8,8 +9,30 @@ function App() {
   const [receiver, setReceiver] = useState("");
   const [fileCount, setFileCount] = useState("0");
   const [fileDetails, setFileDetails] = useState(null);
-  const [history, setHistory] = useState([]);
+  const [history, setHistory] = useState([
+    {
+      title: "File Created/Moved",
+      from: "0xf39...2266",
+      to: "0x709...79C8",
+      hash: "transaction hash:78c3h...",
+      timestamp: "4/14/2026, 10:57 PM",
+    },
+  ]);
   const [loading, setLoading] = useState(false);
+
+  const shortAddress = (addr) => {
+    if (!addr) return "Not connected";
+    return `${addr.slice(0, 4)}...${addr.slice(-4)}`;
+  };
+
+  const copyText = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      alert("Copied!");
+    } catch {
+      alert("Copy failed");
+    }
+  };
 
   const connectWallet = async () => {
     try {
@@ -41,9 +64,20 @@ function App() {
       const tx = await contract.createFile(fileName);
       await tx.wait();
 
-      alert("File created successfully!");
+      setHistory((prev) => [
+        {
+          title: "File Created",
+          from: shortAddress(account),
+          to: shortAddress(account),
+          hash: tx.hash,
+          timestamp: new Date().toLocaleString(),
+        },
+        ...prev,
+      ]);
+
       setFileName("");
       await getFileCount();
+      alert("File created successfully!");
     } catch (error) {
       console.error(error);
       alert("Create file failed");
@@ -64,10 +98,21 @@ function App() {
       const tx = await contract.transferFile(fileId, receiver);
       await tx.wait();
 
-      alert("File transferred successfully!");
+      setHistory((prev) => [
+        {
+          title: "File Created/Moved",
+          from: shortAddress(account),
+          to: shortAddress(receiver),
+          hash: tx.hash,
+          timestamp: new Date().toLocaleString(),
+        },
+        ...prev,
+      ]);
+
       setReceiver("");
       await getFileDetails();
       await getHistory();
+      alert("File transferred successfully!");
     } catch (error) {
       console.error(error);
       alert("Transfer failed");
@@ -101,6 +146,8 @@ function App() {
         id: file.id.toString(),
         name: file.name,
         currentOwner: file.currentOwner,
+        lastAccessed: "--",
+        status: "Not Loaded",
       });
     } catch (error) {
       console.error(error);
@@ -119,12 +166,14 @@ function App() {
       const fileHistory = await contract.getHistory(fileId);
 
       const formattedHistory = fileHistory.map((item) => ({
-        from: item.from,
-        to: item.to,
+        title: "File Created/Moved",
+        from: shortAddress(item.from),
+        to: shortAddress(item.to),
+        hash: "-",
         timestamp: new Date(Number(item.timestamp) * 1000).toLocaleString(),
       }));
 
-      setHistory(formattedHistory);
+      setHistory(formattedHistory.reverse());
     } catch (error) {
       console.error(error);
       alert("Could not fetch history");
@@ -132,106 +181,155 @@ function App() {
   };
 
   return (
-    <div style={{ padding: "20px", fontFamily: "Arial" }}>
-      <h1>File Movement Tracking System</h1>
+    <div className="app-shell">
+      <div className="page">
+        <h1 className="main-title">File Movement Tracking System</h1>
 
-      <div style={{ marginBottom: "20px" }}>
-        <button onClick={connectWallet}>Connect Wallet</button>
-        <p>
-          <strong>Connected Account:</strong> {account || "Not connected"}
-        </p>
-      </div>
+        <div className="wallet-section">
+          <button className="wallet-btn" onClick={connectWallet}>
+            <span className="wallet-icon">◫</span>
+            Connect Wallet
+          </button>
 
-      <hr />
-
-      <div style={{ marginTop: "20px" }}>
-        <h2>Create File</h2>
-        <input
-          type="text"
-          placeholder="Enter file name"
-          value={fileName}
-          onChange={(e) => setFileName(e.target.value)}
-          style={{ marginRight: "10px", padding: "8px" }}
-        />
-        <button onClick={createFile} disabled={loading}>
-          {loading ? "Processing..." : "Create File"}
-        </button>
-      </div>
-
-      <hr />
-
-      <div style={{ marginTop: "20px" }}>
-        <h2>File Actions</h2>
-        <input
-          type="number"
-          placeholder="Enter file ID"
-          value={fileId}
-          onChange={(e) => setFileId(e.target.value)}
-          style={{ marginRight: "10px", padding: "8px" }}
-        />
-        <button onClick={getFileCount} style={{ marginRight: "10px" }}>
-          Get File Count
-        </button>
-        <button onClick={getFileDetails} style={{ marginRight: "10px" }}>
-          Get File Details
-        </button>
-        <button onClick={getHistory}>Get File History</button>
-      </div>
-
-      <div style={{ marginTop: "20px" }}>
-        <p>
-          <strong>Total Files:</strong> {fileCount}
-        </p>
-      </div>
-
-      <hr />
-
-      <div style={{ marginTop: "20px" }}>
-        <h2>Transfer File</h2>
-        <input
-          type="text"
-          placeholder="Receiver address"
-          value={receiver}
-          onChange={(e) => setReceiver(e.target.value)}
-          style={{ marginRight: "10px", padding: "8px", width: "420px" }}
-        />
-        <button onClick={transferFile} disabled={loading}>
-          {loading ? "Processing..." : "Transfer File"}
-        </button>
-      </div>
-
-      <hr />
-
-      <div style={{ marginTop: "20px" }}>
-        <h2>File Details</h2>
-        {fileDetails ? (
-          <div>
-            <p><strong>ID:</strong> {fileDetails.id}</p>
-            <p><strong>Name:</strong> {fileDetails.name}</p>
-            <p><strong>Current Owner:</strong> {fileDetails.currentOwner}</p>
+          <div className="connected-box">
+            <span className="online-dot"></span>
+            <span className="connected-label">
+              Connected Account: {shortAddress(account)}
+            </span>
+            <span className="profile-badge">🟣</span>
           </div>
-        ) : (
-          <p>No file details loaded</p>
-        )}
-      </div>
+        </div>
 
-      <hr />
+        <div className="top-grid">
+          <div className="card">
+            <h2 className="card-title">CREATE FILE</h2>
+            <input
+              className="input"
+              type="text"
+              placeholder="File Name"
+              value={fileName}
+              onChange={(e) => setFileName(e.target.value)}
+            />
+            <button className="primary-btn" onClick={createFile} disabled={loading}>
+              {loading ? "Processing..." : "⊕ Create File"}
+            </button>
+          </div>
 
-      <div style={{ marginTop: "20px" }}>
-        <h2>File History</h2>
-        {history.length > 0 ? (
-          <ul>
-            {history.map((item, index) => (
-              <li key={index} style={{ marginBottom: "10px" }}>
-                <p><strong>From:</strong> {item.from}</p>
-                <p><strong>To:</strong> {item.to}</p>
-                <p><strong>Time:</strong> {item.timestamp}</p>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p>No history found</p>
-        )}
+          <div className="card">
+            <h2 className="card-title">FILE ACTIONS</h2>
+
+            <div className="search-wrap">
+              <input
+                className="input"
+                type="number"
+                placeholder="File ID"
+                value={fileId}
+                onChange={(e) => setFileId(e.target.value)}
+              />
+              <span className="search-mark">⌕</span>
+            </div>
+
+            <div className="action-row">
+              <button className="action-btn" onClick={getFileCount}>
+                ☰ Get File Count
+              </button>
+              <button className="action-btn active" onClick={getFileDetails}>
+                📄 Get File Details
+              </button>
+              <button className="action-btn" onClick={getHistory}>
+                ↺ Get File History
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="bottom-grid">
+          <div className="card transfer-card">
+            <h2 className="card-title">TRANSFER FILE</h2>
+            <input
+              className="input"
+              type="text"
+              placeholder="Receiver Address"
+              value={receiver}
+              onChange={(e) => setReceiver(e.target.value)}
+            />
+            <button className="secondary-btn" onClick={transferFile} disabled={loading}>
+              {loading ? "Processing..." : "Transfer File →"}
+            </button>
+          </div>
+
+          <div className="card logs-card">
+            <h2 className="card-title">FILE LOGS</h2>
+
+            <div className="file-count-box">🧾 Total Files: {fileCount}</div>
+
+            <div className="logs-grid">
+              <div className="details-panel">
+                <h3>Details</h3>
+
+                <div className="detail-item">
+                  <span>Last Accessed</span>
+                  <span>{fileDetails?.lastAccessed || "--"}</span>
+                </div>
+
+                <div className="detail-item">
+                  <span>Owner</span>
+                  <span>
+                    {fileDetails ? shortAddress(fileDetails.currentOwner) : "Not Loaded"}
+                  </span>
+                </div>
+
+                <div className="detail-item">
+                  <span>Status</span>
+                  <span>{fileDetails?.status || "Not Loaded"}</span>
+                </div>
+              </div>
+
+              <div className="history-panel">
+                <h3>History</h3>
+
+                {history.length > 0 ? (
+                  history.map((item, index) => (
+                    <div className="history-card" key={index}>
+                      <p className="history-title">{item.title}</p>
+
+                      <div className="history-row">
+                        <span>From: {item.from}</span>
+                        <button className="copy-btn" onClick={() => copyText(item.from)}>
+                          copy
+                        </button>
+                      </div>
+
+                      <div className="history-row">
+                        <span>To: {item.to}</span>
+                        <button className="copy-btn" onClick={() => copyText(item.to)}>
+                          copy
+                        </button>
+                      </div>
+
+                      <div className="history-row">
+                        <span>Hash: {item.hash}</span>
+                        <button className="copy-btn" onClick={() => copyText(item.hash)}>
+                          copy
+                        </button>
+                      </div>
+
+                      <p>Timestamp: {item.timestamp}</p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="history-card">No history found</div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <footer className="footer">
+          <span>Blockchain Status: Mainnet</span>
+          <span>Privacy · Privacy · Docs</span>
+          <span>Command · Docs</span>
+        </footer>
       </div>
     </div>
   );
